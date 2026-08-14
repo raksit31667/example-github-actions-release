@@ -6,7 +6,7 @@ name: Build Image (once, SHA-tagged)
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_call:
     outputs:
       image_tag:
