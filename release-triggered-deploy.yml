@@ -1,0 +1,35 @@
+name: Deploy on GitHub Release
+# Sticky notes addressed:
+#  - "Leverage GitHub Release feature: Trigger deploy to release when new Release is created"
+#  - "Service owner can specify via UI the commit they want to cut the release from"
+#    (GitHub's own "Create a new release" UI lets the owner pick the target commit/tag)
+#  - "Service owners specify what version number they want — instead of JEDIS logic
+#    calculating it for them" / "Service owner can set major version by themselves"
+#  - "no more than 1 tag per commit" is enforced for free: GitHub won't let two
+#    Releases point at the same tag name, and the owner is naming the tag themselves.
+#
+# Assumes build-image.yml already ran on push to master and pushed an image
+# tagged with the SHA of every commit — so any commit is deployable on demand.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  resolve-image:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve the commit SHA this release points to
+        id: resolve
+        run: |
+          echo "sha=$(echo '${{ github.event.release.target_commitish }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: resolve-image
+    uses: ./.github/workflows/deploy-gitops.yml
+    with:
+      image_tag: ${{ needs.resolve-image.outputs.sha }}
+      version_tag: ${{ github.event.release.tag_name }}
+      environment: production

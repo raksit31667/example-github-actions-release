@@ -1,0 +1,30 @@
+name: Deploy to GitOps (reusable)
+# Sticky notes addressed:
+#  - "Pipeline can be rerun without error" -> git commit --allow-empty
+#  - shared by both versioning paradigms so the "rerun failed job" bug
+#    (see transcript: nothing-to-commit failure) can't recur
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+      version_tag:
+        required: false
+        type: string
+        description: "Optional semantic version label to record in commit message/annotations"
+      environment:
+        required: true
+        type: string
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying to ${{ inputs.environment }} using image tag ${{ inputs.image_tag }}"

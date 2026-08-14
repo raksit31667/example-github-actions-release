@@ -1,0 +1,55 @@
+name: Deploy via manual version input
+# Sticky notes addressed:
+#  - "Can easily specify the desired release version through UI (not git tags)
+#    with reasonable defaults" -> workflow_dispatch inputs are the UI
+#  - "can specify release/tag version number"
+#  - "Pipeline can be rerun without error" -> tag step is force/idempotent,
+#    and the deploy is delegated to deploy-gitops.yml
+#
+# Use this instead of release-triggered-deploy.yml if the team decides to keep
+# git tags as the versioning source of truth rather than moving to SHA+Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to release from"
+        required: true
+      version:
+        description: "Version to tag, e.g. 2.4.0"
+        required: true
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [test, staging, production]
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-gitops.yml
+    with:
+      image_tag: ${{ inputs.commit_sha }}
+      version_tag: v${{ inputs.version }}
+      environment: ${{ inputs.environment }}
+
+  tag:
+    needs: deploy
+    # Only tag Git once the deployment succeeded, and only for PROD releases.
+    # `needs: deploy` means this job runs only if deploy passed; the `if`
+    # scopes it to production.
+    if: inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Create and push tag (owner-chosen version, not auto-calculated)
+        run: |
+          git config user.name "jedis-ci"
+          git config user.email "jedis-ci@jetstar.com"
+          # -f / --force: reruns must succeed even if this exact tag already
+          # exists (e.g. "rerun failed jobs only" after a downstream failure).
+          git tag -f "v${{ inputs.version }}" ${{ inputs.commit_sha }}
+          git push -f origin "v${{ inputs.version }}"
